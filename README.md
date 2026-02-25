@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PropHunt CRM - Prospecção Ativa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.0/lucide.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 
+        NOTA: Para o Autocomplete funcionar, substitua YOUR_API_KEY_HERE por uma chave válida 
+        com a "Places API" ativada no Google Cloud Console.
+    -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=&libraries=places"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .glass-card { background: white; border-radius: 1rem; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .tab-active { background-color: white; color: #2563eb; border: 1px solid #e2e8f0; border-bottom-color: transparent; margin-bottom: -1px; border-radius: 0.75rem 0.75rem 0 0; }
+    </style>
+</head>
+<body class="pb-10">
+
+    <div id="app" class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Header Superior -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div>
+                <div class="flex items-center gap-2 mb-1">
+                    <div class="bg-blue-600 p-2 rounded-lg">
+                        <i data-lucide="building-2" class="text-white w-6 h-6"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold text-slate-900 tracking-tight">PropHunt <span class="text-blue-600">CRM</span></h1>
+                </div>
+                <p class="text-slate-500 text-sm">Controle de captação e prospecção direta</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="ui.showModal('modalAddProperty')" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-blue-200">
+                    <i data-lucide="plus" class="w-5 h-5"></i> Novo Proprietário
+                </button>
+            </div>
+        </header>
+
+        <!-- Navegação -->
+        <nav class="flex gap-2 mb-6 border-b border-slate-200 px-2 overflow-x-auto">
+            <button onclick="ui.changeTab('dashboard')" id="tab-dashboard" class="px-6 py-3 font-semibold text-slate-500 transition-all tab-active">Dashboard</button>
+            <button onclick="ui.changeTab('leads')" id="tab-leads" class="px-6 py-3 font-semibold text-slate-500 transition-all">Gestão de Proprietários</button>
+        </nav>
+
+        <!-- SECTION: DASHBOARD -->
+        <section id="section-dashboard" class="space-y-6">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-bold text-slate-800">Visão Geral da Operação</h2>
+                <span class="text-sm text-slate-400 font-medium">Atualizado agora</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="glass-card p-5">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">Contatos Hoje</p>
+                    <div class="flex items-end justify-between">
+                        <span id="stat-sent" class="text-3xl font-bold text-slate-800">0</span>
+                        <span class="text-blue-600 text-xs font-bold bg-blue-50 px-2 py-1 rounded">Meta 10</span>
+                    </div>
+                </div>
+                <div class="glass-card p-5">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">Taxa de Resposta</p>
+                    <div class="flex items-end justify-between">
+                        <span id="stat-replies" class="text-3xl font-bold text-green-600">0</span>
+                        <span class="text-slate-400 text-xs">Total acumulado</span>
+                    </div>
+                </div>
+                <div class="glass-card p-5">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">Visitas Agendadas</p>
+                    <div class="flex items-end justify-between">
+                        <span id="stat-meetings" class="text-3xl font-bold text-purple-600">0</span>
+                        <i data-lucide="calendar" class="text-slate-300 w-5 h-5"></i>
+                    </div>
+                </div>
+                <div class="glass-card p-5">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">Arquivados/Lixo</p>
+                    <div class="flex items-end justify-between">
+                        <span id="stat-trash" class="text-3xl font-bold text-slate-400">0</span>
+                        <i data-lucide="trash-2" class="text-slate-200 w-5 h-5"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-1 glass-card p-6">
+                    <h3 class="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                        <i data-lucide="filter" class="w-5 h-5 text-blue-500"></i> Funil de Prospecção
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="bg-blue-600 text-white p-3 text-center rounded-lg font-bold text-sm shadow-sm" style="width: 100%">
+                            Mensagens/Ligações: <span id="funnel-total">0</span>
+                        </div>
+                        <div class="bg-blue-500 text-white p-3 text-center rounded-lg font-bold text-sm shadow-sm mx-auto" style="width: 85%">
+                            Respondidos: <span id="funnel-contact">0</span>
+                        </div>
+                        <div class="bg-blue-400 text-white p-3 text-center rounded-lg font-bold text-sm shadow-sm mx-auto" style="width: 70%">
+                            Agendamentos: <span id="funnel-interest">0</span>
+                        </div>
+                        <div class="bg-green-500 text-white p-3 text-center rounded-lg font-bold text-sm shadow-sm mx-auto" style="width: 55%">
+                            C1: <span id="funnel-visit">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 glass-card p-6">
+                    <h3 class="font-bold text-slate-800 mb-6">Atividade de Contatos (Últimos 7 dias)</h3>
+                    <canvas id="activityChart" height="150"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION: GESTÃO DE PROPRIETÁRIOS -->
+        <section id="section-leads" class="hidden space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h2 class="text-xl font-bold text-slate-800">Carteira de Proprietários</h2>
+                <div class="flex gap-2">
+                    <input type="text" id="searchLeads" onkeyup="ui.renderLeads()" placeholder="Filtrar por nome ou rua..." class="px-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-64">
+                    <select id="filterStatus" onchange="ui.renderLeads()" class="px-4 py-2 rounded-xl border border-slate-200 outline-none">
+                        <option value="all">Todos Status</option>
+                        <option value="Novo">Novo</option>
+                        <option value="Em Contato">Em Contato</option>
+                        <option value="Agendado">Agendado</option>
+                    </select>
+                </div>
+            </div>
+            <div id="leadsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </section>
+    </div>
+
+    <!-- Modal Adicionar Proprietário -->
+    <div id="modalAddProperty" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-800">Novo Proprietário</h3>
+                <button onclick="ui.hideModal('modalAddProperty')" class="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                    <i data-lucide="x" class="text-slate-400"></i>
+                </button>
+            </div>
+            <form id="propertyForm" onsubmit="appLogic.saveProperty(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Nome do Proprietário</label>
+                    <input type="text" name="owner" required placeholder="Ex: João da Silva" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Endereço Completo</label>
+                    <input type="text" id="autocomplete-address" name="address" required placeholder="Digite o endereço..." class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+                    <p id="map-api-warning" class="hidden text-[10px] text-amber-600 mt-1">Nota: Autocomplete desativado (Chave de API ausente).</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Complemento</label>
+                        <input type="text" name="complement" placeholder="Complemento" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Tem Óbito?</label>
+                        <select name="isObito" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none">
+                            <option value="Não">Não</option>
+                            <option value="Sim">Sim</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Link do Anúncio</label>
+                    <input type="url" name="link" placeholder="Link do Anúncio" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Telefones</label>
+                    <textarea name="phones" placeholder="Telefones (separe por vírgula)" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none h-20"></textarea>
+                </div>
+                
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="ui.hideModal('modalAddProperty')" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 rounded-xl font-bold transition-colors">Cancelar</button>
+                    <button type="submit" class="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all">Cadastrar Proprietário</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 transform translate-y-20 opacity-0 bg-slate-800 text-white px-6 py-3 rounded-xl shadow-2xl transition-all z-[9999]">
+        <span id="toast-msg">Sucesso!</span>
+    </div>
+
+    <script>
+        // Função global para capturar erro de autenticação do Google Maps
+        window.gm_authFailure = function() {
+            console.error("Google Maps API: Erro de Autenticação. Verifique sua API Key.");
+            document.getElementById('map-api-warning')?.classList.remove('hidden');
+        };
+
+        let activityChart;
+
+        const dataManager = {
+            storageKey: 'prophunt_v3_data',
+            leads: [],
+            stats: { sentToday: 0, replies: 0, meetings: 0, lastUpdate: null },
+
+            init() {
+                const saved = localStorage.getItem(this.storageKey);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    this.leads = parsed.leads || [];
+                    this.stats = parsed.stats || this.stats;
+                }
+                this.checkDailyReset();
+                this.save();
+            },
+            checkDailyReset() {
+                const today = new Date().toLocaleDateString();
+                if (this.stats.lastUpdate !== today) {
+                    this.stats.sentToday = 0;
+                    this.stats.lastUpdate = today;
+                }
+            },
+            save() {
+                localStorage.setItem(this.storageKey, JSON.stringify({ leads: this.leads, stats: this.stats }));
+            }
+        };
+
+        const ui = {
+            currentTab: 'dashboard',
+            init() {
+                this.refreshIcons();
+                this.initChart();
+                this.initAutocomplete();
+                this.renderAll();
+            },
+            refreshIcons() { if(window.lucide) lucide.createIcons(); },
+            showModal(id) { document.getElementById(id).classList.remove('hidden'); },
+            hideModal(id) { document.getElementById(id).classList.add('hidden'); },
+            changeTab(tab) {
+                this.currentTab = tab;
+                document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+                document.getElementById(`section-${tab}`).classList.remove('hidden');
+                document.querySelectorAll('nav button').forEach(b => b.classList.remove('tab-active'));
+                document.getElementById(`tab-${tab}`).classList.add('tab-active');
+                this.renderAll();
+            },
+            initChart() {
+                const ctx = document.getElementById('activityChart').getContext('2d');
+                if(activityChart) activityChart.destroy();
+                activityChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'],
+                        datasets: [{
+                            label: 'Contatos Realizados',
+                            data: [4, 8, 3, 10, 5, 2, 0],
+                            borderColor: '#2563eb',
+                            tension: 0.4,
+                            fill: true,
+                            backgroundColor: 'rgba(37, 99, 235, 0.05)'
+                        }]
+                    },
+                    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                });
+            },
+            initAutocomplete() {
+                const input = document.getElementById('autocomplete-address');
+                
+                // Verifica se a biblioteca foi carregada corretamente
+                if(typeof google === 'undefined' || !google.maps || !google.maps.places) {
+                    console.warn("Google Maps Places não disponível. O preenchimento automático não funcionará.");
+                    document.getElementById('map-api-warning')?.classList.remove('hidden');
+                    return;
+                }
+
+                try {
+                    const auto = new google.maps.places.Autocomplete(input, { 
+                        types: ['address'], 
+                        componentRestrictions: {country: 'br'},
+                        fields: ['formatted_address', 'geometry']
+                    });
+                    
+                    auto.addListener('place_changed', () => {
+                        const place = auto.getPlace();
+                        if (!place.formatted_address) return;
+                        console.log("Endereço validado:", place.formatted_address);
+                    });
+                } catch(e) { 
+                    console.error("Falha ao iniciar Autocomplete:", e); 
+                    document.getElementById('map-api-warning')?.classList.remove('hidden');
+                }
+            },
+            renderAll() {
+                this.updateStatsUI();
+                if(this.currentTab === 'leads') this.renderLeads();
+                this.refreshIcons();
+            },
+            updateStatsUI() {
+                document.getElementById('stat-sent').innerText = dataManager.stats.sentToday;
+                document.getElementById('stat-replies').innerText = dataManager.stats.replies;
+                document.getElementById('stat-meetings').innerText = dataManager.stats.meetings;
+                document.getElementById('stat-trash').innerText = dataManager.leads.filter(l => l.status === 'Arquivado').length;
+                
+                document.getElementById('funnel-total').innerText = dataManager.leads.length;
+                document.getElementById('funnel-contact').innerText = dataManager.leads.filter(l => l.status === 'Em Contato').length;
+                document.getElementById('funnel-interest').innerText = dataManager.leads.filter(l => l.status === 'Agendado').length; 
+                document.getElementById('funnel-visit').innerText = dataManager.stats.meetings;
+            },
+            renderLeads() {
+                const container = document.getElementById('leadsContainer');
+                const search = document.getElementById('searchLeads').value.toLowerCase();
+                const filter = document.getElementById('filterStatus').value;
+                const filtered = dataManager.leads.filter(l => {
+                    const match = l.owner.toLowerCase().includes(search) || l.address.toLowerCase().includes(search);
+                    const statusMatch = filter === 'all' || l.status === filter;
+                    return match && statusMatch && l.status !== 'Arquivado';
+                });
+                
+                if (filtered.length === 0) {
+                    container.innerHTML = `<div class="col-span-full text-center py-10 text-slate-400">Nenhum proprietário encontrado.</div>`;
+                    return;
+                }
+                
+                container.innerHTML = filtered.map(lead => this.createCard(lead)).join('');
+                this.refreshIcons();
+            },
+            createCard(lead) {
+                return `
+                <div class="glass-card p-5 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-0.5 rounded">${lead.status}</span>
+                            <div class="flex gap-2">
+                                ${lead.isObito === 'Sim' ? '<span class="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">ÓBITO</span>' : ''}
+                                <button onclick="appLogic.archiveLead('${lead.id}')" class="text-slate-300 hover:text-red-500"><i data-lucide="archive" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-lg">${lead.owner}</h4>
+                        <p class="text-xs text-slate-500 mb-4">${lead.address} ${lead.complement ? ' - ' + lead.complement : ''}</p>
+                    </div>
+                    <div class="flex gap-2">
+                        ${lead.phones.map(p => `
+                            <button onclick="appLogic.callWhatsApp('${lead.id}', '${p}')" class="flex-1 bg-green-500 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+                                <i data-lucide="message-circle" class="w-3 h-3"></i> WhatsApp
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>`;
+            },
+            showToast(msg) {
+                const t = document.getElementById('toast');
+                document.getElementById('toast-msg').innerText = msg;
+                t.classList.remove('translate-y-20', 'opacity-0');
+                setTimeout(() => t.classList.add('translate-y-20', 'opacity-0'), 3000);
+            }
+        };
+
+        const appLogic = {
+            saveProperty(e) {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                const phonesText = fd.get('phones') || "";
+                const phones = phonesText.split(',').map(p => p.trim()).filter(p => p.length > 5);
+                
+                const lead = {
+                    id: crypto.randomUUID(),
+                    owner: fd.get('owner'),
+                    address: fd.get('address'),
+                    complement: fd.get('complement'),
+                    link: fd.get('link'),
+                    isObito: fd.get('isObito'),
+                    phones: phones,
+                    status: 'Novo',
+                    createdAt: new Date().toISOString()
+                };
+                
+                dataManager.leads.push(lead);
+                dataManager.save();
+                ui.hideModal('modalAddProperty');
+                ui.renderAll();
+                ui.showToast('Proprietário cadastrado!');
+                e.target.reset();
+            },
+            callWhatsApp(id, phone) {
+                const lead = dataManager.leads.find(l => l.id === id);
+                if(lead && lead.status === 'Novo') lead.status = 'Em Contato';
+                dataManager.stats.sentToday++;
+                dataManager.save();
+                window.open(`https://api.whatsapp.com/send?phone=55${phone.replace(/\D/g,'')}`, '_blank');
+                ui.renderAll();
+            },
+            archiveLead(id) {
+                const lead = dataManager.leads.find(l => l.id === id);
+                if(lead) {
+                    lead.status = 'Arquivado';
+                    dataManager.save();
+                    ui.renderAll();
+                    ui.showToast('Proprietário arquivado.');
+                }
+            }
+        };
+
+        window.addEventListener('load', () => { 
+            dataManager.init(); 
+            ui.init(); 
+        });
+    </script>
+</body>
+</html>
